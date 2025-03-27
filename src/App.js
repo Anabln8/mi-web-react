@@ -1,58 +1,62 @@
-import React, { useState } from "react";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { useState } from "react";
 import "./App.css";
+import { Upload } from "@aws-sdk/lib-storage";
+import { S3Client, S3 } from "@aws-sdk/client-s3";
 
 function App() {
-  // Estado para almacenar el archivo seleccionado
   const [selectFile, setSelectFile] = useState(null);
-  // Estado para controlar si se está subiendo un archivo
   const [uploading, setUploading] = useState(false);
-  // Estado para mostrar mensajes al usuario
   const [uploadMessage, setUploadMessage] = useState("");
 
-  // Función que se ejecuta cuando el usuario selecciona un archivo
   const handleFileInput = (e) => {
+    // Extract the first file from the FileList
     const file = e.target.files[0];
     console.log("Nombre del archivo:", file.name);
     setSelectFile(file);
   };
 
-  // Función para subir el archivo a S3
   const handleUpload = async () => {
     if (!selectFile) {
-      setUploadMessage("Por favor, seleccione un archivo.");
+      setUploadMessage("Please select a file.");
       return;
     }
+    
 
     setUploading(true);
-    setUploadMessage("Subiendo...");
+    setUploadMessage("Uploading...");
 
     try {
-      // Crear un cliente S3 configurado con las credenciales (definidas en el código)
-      const client = new S3Client({
-        region: "us-east-1",
-        credentials: {
-          accessKeyId: "XXXXXXXXX",
-          secretAccessKey: "XXXXXXXXX",
-          sessionToken: "XXXXXXXXX", 
-        },
-      });
-
-      // Parámetros para la subida
+   
+      const fileStream = selectFile.stream ? selectFile.stream() : selectFile;
       const params = {
-        Bucket: "nombre-del-bucket", // Reemplaza con el nombre real de tu bucket S3
-        Key: selectFile.name,         // Usamos el nombre del archivo seleccionado
-        Body: selectFile,             // El contenido del archivo
+        Bucket: "osmefru",
+        Key: selectFile.name,
+        Body: fileStream,
       };
+      const parallelUploads3 = new Upload({
+        client:  new S3Client({
+          region: "us-east-1",
+          credentials: {
+            accessKeyId: "XXXXXXXXXXXX",
+            secretAccessKey: "XXXXXXXXXXXXXX",
+            sessionToken: "XXXXXXXXXXX"
+          },
+        }),
+        params: params,
+      });
+  
+      parallelUploads3.on("httpUploadProgress", (progress) => {
+        console.log(progress);
+      });
+  
+      await parallelUploads3.done();
 
-      // Crear el comando de subida y enviarlo
-      const command = new PutObjectCommand(params);
-      await client.send(command);
 
-      setUploadMessage("Subida exitosa!");
+
+      setUploadMessage("Upload successful!");
     } catch (error) {
-      console.error("Error al subir el archivo:", error);
-      setUploadMessage("Error al subir archivo. Intente nuevamente.");
+      console.error("Error uploading file:", error);
+      setUploadMessage("Error uploading file. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -60,16 +64,12 @@ function App() {
 
   return (
     <div className="app-container">
-      <h1>Subidor de Archivos</h1>
-      <input type="file" onChange={handleFileInput} multiple />
+      <h1>File Uploader</h1>
+      <input type="file" onChange={handleFileInput} multiple></input>
       <button onClick={handleUpload} disabled={uploading}>
-        {uploading ? "Subiendo..." : "Subir a S3"}
+        {uploading ? "Uploading..." : "Upload To S3"}
       </button>
-      {uploadMessage && (
-        <p className={uploading ? "uploading-message" : "upload-message"}>
-          {uploadMessage}
-        </p>
-      )}
+      {uploadMessage && <p className={uploading ? "uploading-message" : "upload-message"}>{uploadMessage}</p>}
     </div>
   );
 }
